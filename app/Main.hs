@@ -80,7 +80,7 @@ readFromFile3 = do
   withFile "valid.csv" ReadMode $ \ csvFile -> do
     let loop !_ (Fail _ errMsg) = do putStrLn errMsg; exitFailure
         loop acc (Many rs k)    = loop (acc <> rs) =<< feed k csvFile
-        loop acc (Done rs)      = print (acc <> rs) >> putStrLn "valid.csv read successfully!"
+        loop acc (Done rs)      = print (acc <> rs)
     loop [] (decode NoHeader)
 
 
