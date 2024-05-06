@@ -3,10 +3,28 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
+
+{-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import Control.Monad (when)
 import Torch
+
+-- from base
+import GHC.Generics
+import System.IO
+import System.Exit (exitFailure)
+-- from bytestring
+import Data.ByteString (ByteString, hGetSome, empty)
+import qualified Data.ByteString.Lazy as BL
+-- from cassava
+import Data.Csv.Incremental
+import Data.Csv (FromRecord, ToRecord)
+
 
 model :: Linear -> Tensor -> Tensor
 model state input = squeezeAll $ linear state input
@@ -22,8 +40,56 @@ printParams trained = do
   putStrLn $ "Parameters:\n" ++ (show $ toDependent $ trained.weight)
   putStrLn $ "Bias:\n" ++ (show $ toDependent $ trained.bias)
 
+
+
+data WeatherData = WeatherData
+  { date :: !ByteString
+  , daily_mean_temprature :: !Double
+  } deriving(Show, Eq, Generic)
+
+instance FromRecord WeatherData
+instance ToRecord WeatherData
+
+feed :: (ByteString -> Parser WeatherData) -> Handle -> IO (Parser WeatherData)
+feed k csvFile = do
+  hIsEOF csvFile >>= \case
+    True  -> return $ k empty
+    False -> k <$> hGetSome csvFile 4096
+
+    -- train.csv
+readFromFile1 :: IO ()
+readFromFile1 = do
+  withFile "train.csv" ReadMode $ \ csvFile -> do
+    let loop !_ (Fail _ errMsg) = do putStrLn errMsg; exitFailure
+        loop acc (Many rs k)    = loop (acc <> rs) =<< feed k csvFile
+        loop acc (Done rs)      = print (acc <> rs)
+    loop [] (decode NoHeader)
+
+    -- eval.csv
+readFromFile2 :: IO ()
+readFromFile2 = do
+  withFile "eval.csv" ReadMode $ \ csvFile -> do
+    let loop !_ (Fail _ errMsg) = do putStrLn errMsg; exitFailure
+        loop acc (Many rs k)    = loop (acc <> rs) =<< feed k csvFile
+        loop acc (Done rs)      = print (acc <> rs)
+    loop [] (decode NoHeader)
+
+    -- valid.csv
+readFromFile3 :: IO ()
+readFromFile3 = do
+  withFile "valid.csv" ReadMode $ \ csvFile -> do
+    let loop !_ (Fail _ errMsg) = do putStrLn errMsg; exitFailure
+        loop acc (Many rs k)    = loop (acc <> rs) =<< feed k csvFile
+        loop acc (Done rs)      = print (acc <> rs)
+    loop [] (decode NoHeader)
+
+
 main :: IO ()
 main = do
+  readFromFile1
+  readFromFile2
+  readFromFile3
+  
   init <- sample $ LinearSpec {in_features = numFeatures, out_features = 1}
   randGen <- defaultRNG
   printParams init
