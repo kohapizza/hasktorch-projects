@@ -56,28 +56,10 @@ feed k csvFile = do
     True  -> return $ k empty
     False -> k <$> hGetSome csvFile 4096
 
-    -- train.csvを読み込み
-readFromFile1 :: IO ()
-readFromFile1 = do
-  withFile "train.csv" ReadMode $ \ csvFile -> do
-    let loop !_ (Fail _ errMsg) = do putStrLn errMsg; exitFailure
-        loop acc (Many rs k)    = loop (acc <> rs) =<< feed k csvFile
-        loop acc (Done rs)      = print (acc <> rs)
-    loop [] (decode NoHeader)
 
-    -- eval.csv
-readFromFile2 :: IO ()
-readFromFile2 = do
-  withFile "eval.csv" ReadMode $ \ csvFile -> do
-    let loop !_ (Fail _ errMsg) = do putStrLn errMsg; exitFailure
-        loop acc (Many rs k)    = loop (acc <> rs) =<< feed k csvFile
-        loop acc (Done rs)      = print (acc <> rs)
-    loop [] (decode NoHeader)
-
-    -- valid.csv
-readFromFile3 :: IO ()
-readFromFile3 = do
-  withFile "valid.csv" ReadMode $ \ csvFile -> do
+readFromFile :: FilePath -> IO ()
+readFromFile filename = do
+  withFile filename ReadMode $ \ csvFile -> do
     let loop !_ (Fail _ errMsg) = do putStrLn errMsg; exitFailure
         loop acc (Many rs k)    = loop (acc <> rs) =<< feed k csvFile
         loop acc (Done rs)      = print (acc <> rs)
@@ -86,9 +68,7 @@ readFromFile3 = do
 
 main :: IO ()
 main = do
-  readFromFile1
-  readFromFile2
-  readFromFile3
+  readFromFile "/home/acf16406dh/hasktorch-projects/app/linearRegression/datas/train.csv"
 
   init <- sample $ LinearSpec {in_features = numFeatures, out_features = 1}
   randGen <- defaultRNG
