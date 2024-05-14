@@ -20,10 +20,14 @@ import System.IO
 import System.Exit (exitFailure)
 -- from bytestring
 import Data.ByteString (ByteString, hGetSome, empty)
-import qualified Data.ByteString.Lazy as BL
+-- import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as C
 -- from cassava
 import Data.Csv.Incremental
 import Data.Csv (FromRecord, ToRecord)
+
+import Data.List.Split (splitOn)
 
 
 model :: Linear -> Tensor -> Tensor
@@ -40,7 +44,7 @@ printParams trained = do
   putStrLn $ "Parameters:\n" ++ (show $ toDependent $ trained.weight)
   putStrLn $ "Bias:\n" ++ (show $ toDependent $ trained.bias)
 
--- ([7つのデータ], 8日目の気温)を作りたい
+
 
 data WeatherData = WeatherData
   { date :: !ByteString
@@ -50,25 +54,43 @@ data WeatherData = WeatherData
 instance FromRecord WeatherData
 instance ToRecord WeatherData
 
-feed :: (ByteString -> Parser WeatherData) -> Handle -> IO (Parser WeatherData)
-feed k csvFile = do
-  hIsEOF csvFile >>= \case
-    True  -> return $ k empty
-    False -> k <$> hGetSome csvFile 4096
+
+-- ([7日間のデータ], 8日目の気温)を作りたい
+
+readFromFileToList :: FilePath -> IO [([Float], Float)]
+readFromFileToList filename = do
+  -- CSVファイルの読み込み
+  -- B.readFile :: FilePath -> IO ByteString
+  csvData <- B.readFile filename
+  -- B.putStr csvData
+  
+  -- 行ごとに分割してリストに入れる
+  let list_csv = C.lines csvData
+  let linesWithoutHeader = tail list_csv
+  print linesWithoutHeader
+  let temperatures = map (read . last . splitOn ",") linesWithoutHeader
+
+  
 
 
-readFromFile :: FilePath -> IO ()
-readFromFile filename = do
-  withFile filename ReadMode $ \ csvFile -> do
-    let loop !_ (Fail _ errMsg) = do putStrLn errMsg; exitFailure
-        loop acc (Many rs k)    = loop (acc <> rs) =<< feed k csvFile
-        loop acc (Done rs)      = print (acc <> rs)
-    loop [] (decode NoHeader)
+  -- parse datas
+  -- まず気温だけのリストにする
+
+  -- [([Float], Float)]への変換
+
+  let dataList = [] -- あとでちゃんと代入する
+
+  -- 気温データだけ取り出す
+  --let linesWithoutHeader = tail (lines csvData)  -- ヘッダーを除く
+  --put linesWithoutHeader
+  
+  return dataList
 
 
 main :: IO ()
 main = do
-  readFromFile "/home/acf16406dh/hasktorch-projects/app/linearRegression/datas/train.csv"
+  dataList <- readFromFileToList "/home/acf16406dh/hasktorch-projects/app/linearRegression/datas/train.csv"
+
 
   init <- sample $ LinearSpec {in_features = numFeatures, out_features = 1}
   randGen <- defaultRNG
