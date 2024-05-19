@@ -40,6 +40,9 @@ library
     , hasktorch
     , hasktorch-tools
     , split
+    , text
+    , utf8-string
+    , vector
   default-language: Haskell2010
 
 executable hasktorch-projects-exe
@@ -59,6 +62,9 @@ executable hasktorch-projects-exe
     , hasktorch-projects
     , hasktorch-tools
     , split
+    , text
+    , utf8-string
+    , vector
   default-language: Haskell2010
 
 test-suite hasktorch-projects-test
@@ -79,4 +85,7 @@ test-suite hasktorch-projects-test
     , hasktorch-projects
     , hasktorch-tools
     , split
+    , text
+    , utf8-string
+    , vector
   default-language: Haskell2010

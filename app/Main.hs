@@ -15,19 +15,35 @@ import Control.Monad (when)
 import Torch
 
 -- from base
+import System.IO.Unsafe (unsafePerformIO)
+
 import GHC.Generics
 import System.IO
 import System.Exit (exitFailure)
+
 -- from bytestring
 import Data.ByteString (ByteString, hGetSome, empty)
--- import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as C
+
 -- from cassava
-import Data.Csv.Incremental
-import Data.Csv (FromRecord, ToRecord)
+import Data.Csv
+import Data.Text (Text)
+import qualified Data.Vector as V
 
 import Data.List.Split (splitOn)
+import qualified Data.List as List
+
+data Temperature = Temperature {
+  date :: String,
+  daily_mean_temprature :: Float }
+  deriving (Generic,Show)
+
+-- instance FromRecord Temperature
+-- instance ToRecord Temperature
+instance FromNamedRecord Temperature where
+    parseNamedRecord r = Temperature <$> r .: "date" <*> r .: "daily_mean_temprature"
 
 
 model :: Linear -> Tensor -> Tensor
@@ -45,51 +61,44 @@ printParams trained = do
   putStrLn $ "Bias:\n" ++ (show $ toDependent $ trained.bias)
 
 
+-- temperatureListから7日間の気温リストtrain7daysTempListを作る
+makeTrain7daysTempList :: [Float] -> [[Float]] -> [[Float]]
+makeTrain7daysTempList [] train7daysTempList = []
+makeTrain7daysTempList [x1] train7daysTempList = []
+makeTrain7daysTempList [x1,x2] train7daysTempList = []
+makeTrain7daysTempList [x1,x2,x3] train7daysTempList = []
+makeTrain7daysTempList [x1,x2,x3,x4] train7daysTempList = []
+makeTrain7daysTempList [x1,x2,x3,x4,x5] train7daysTempList = []
+makeTrain7daysTempList [x1,x2,x3,x4,x5,x6] train7daysTempList = []
+makeTrain7daysTempList [x1,x2,x3,x4,x5,x6,x7] train7daysTempList = (train7daysTempList ++ [[x1,x2,x3,x4,x5,x6,x7]]) -- 最後
+makeTrain7daysTempList temperatureList train7daysTempList = makeTrain7daysTempList (tail temperatureList) (train7daysTempList ++ ([Prelude.take 7 temperatureList])) 
 
-data WeatherData = WeatherData
-  { date :: !ByteString
-  , daily_mean_temprature :: !Double
-  } deriving(Show, Eq, Generic)
+-- Tempature型を受け取ったらdaily_mean_tempratureを返す
+convertToTemprature :: Temperature -> Float
+convertToTemprature = daily_mean_temprature
 
-instance FromRecord WeatherData
-instance ToRecord WeatherData
-
-
--- ([7日間のデータ], 8日目の気温)を作りたい
-
-readFromFileToList :: FilePath -> IO [([Float], Float)]
-readFromFileToList filename = do
-  -- CSVファイルの読み込み
-  -- B.readFile :: FilePath -> IO ByteString
-  csvData <- B.readFile filename
-  -- B.putStr csvData
-  
-  -- 行ごとに分割してリストに入れる
-  let list_csv = C.lines csvData
-  let linesWithoutHeader = tail list_csv
-  print linesWithoutHeader
-  let temperatures = map (read . last . splitOn ",") linesWithoutHeader
-
-  
-
-
-  -- parse datas
-  -- まず気温だけのリストにする
-
-  -- [([Float], Float)]への変換
-
-  let dataList = [] -- あとでちゃんと代入する
-
-  -- 気温データだけ取り出す
-  --let linesWithoutHeader = tail (lines csvData)  -- ヘッダーを除く
-  --put linesWithoutHeader
-  
-  return dataList
-
+-- Vector Tempatureを受け取ったらfloatのリストを返す
+-- toList :: Vector a -> [a]
+convertToFloatLists :: (V.Vector Temperature) -> [Float]
+convertToFloatLists vector_tempature =
+  let tempature_list = V.toList vector_tempature
+  in map convertToTemprature tempature_list
 
 main :: IO ()
 main = do
-  dataList <- readFromFileToList "/home/acf16406dh/hasktorch-projects/app/linearRegression/datas/train.csv"
+  -- ファイル読み込み
+  train <- BL.readFile "/home/acf16406dh/hasktorch-projects/app/linearRegression/datas/train.csv"
+
+  -- float型の気温のリストを作る
+  -- decodeByName :: FromNamedRecord a => ByteString -> Either String (Header, Vector a)
+  let train_tempature_list = case decodeByName train of
+        Left error -> [] -- errorの時Left msgが返される
+        Right (_, vector_tempature) -> convertToFloatLists vector_tempature -- 最初の要素:ヘッダー情報を無視
+  --print train_tempature_list
+
+  -- 7日間の気温のリストのリスト
+  let train7daysTempList = makeTrain7daysTempList train_tempature_list []
+  print train7daysTempList
 
 
   init <- sample $ LinearSpec {in_features = numFeatures, out_features = 1}

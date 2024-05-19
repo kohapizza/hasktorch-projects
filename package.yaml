@@ -26,6 +26,9 @@ dependencies:
 - hasktorch
 - hasktorch-tools
 - split
+- utf8-string
+- text
+- vector
 
 ghc-options:
 - -Wall
