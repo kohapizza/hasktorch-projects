@@ -60,18 +60,12 @@ printParams trained = do
   putStrLn $ "Parameters:\n" ++ (show $ toDependent $ trained.weight)
   putStrLn $ "Bias:\n" ++ (show $ toDependent $ trained.bias)
 
+-- 7日間の気温リストと翌日の気温をペアにする関数
+makeTemperaturePairsList :: [Float] -> [([Float], Float)]
+makeTemperaturePairsList temperatureList
+  | length temperatureList < 8 = []
+  | otherwise = (Prelude.take 7 temperatureList, temperatureList !! 7) : makeTemperaturePairsList (tail temperatureList)
 
--- temperatureListから7日間の気温リストtrain7daysTempListを作る
-makeTrain7daysTempList :: [Float] -> [[Float]] -> [[Float]]
-makeTrain7daysTempList [] train7daysTempList = []
-makeTrain7daysTempList [x1] train7daysTempList = []
-makeTrain7daysTempList [x1,x2] train7daysTempList = []
-makeTrain7daysTempList [x1,x2,x3] train7daysTempList = []
-makeTrain7daysTempList [x1,x2,x3,x4] train7daysTempList = []
-makeTrain7daysTempList [x1,x2,x3,x4,x5] train7daysTempList = []
-makeTrain7daysTempList [x1,x2,x3,x4,x5,x6] train7daysTempList = []
-makeTrain7daysTempList [x1,x2,x3,x4,x5,x6,x7] train7daysTempList = (train7daysTempList ++ [[x1,x2,x3,x4,x5,x6,x7]]) -- 最後
-makeTrain7daysTempList temperatureList train7daysTempList = makeTrain7daysTempList (tail temperatureList) (train7daysTempList ++ ([Prelude.take 7 temperatureList])) 
 
 -- Tempature型を受け取ったらdaily_mean_tempratureを返す
 convertToTemprature :: Temperature -> Float
@@ -96,9 +90,10 @@ main = do
         Right (_, vector_tempature) -> convertToFloatLists vector_tempature -- 最初の要素:ヘッダー情報を無視
   --print train_tempature_list
 
-  -- 7日間の気温のリストのリスト
-  let train7daysTempList = makeTrain7daysTempList train_tempature_list []
-  print train7daysTempList
+
+  -- 7日間の気温のリストと8日目の気温の組のリスト
+  let temperaturePairs = makeTemperaturePairsList train_tempature_list
+  print temperaturePairs
 
 
   init <- sample $ LinearSpec {in_features = numFeatures, out_features = 1}
