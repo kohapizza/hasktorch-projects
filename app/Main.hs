@@ -32,7 +32,6 @@ import Data.Csv
 import Data.Text (Text)
 import qualified Data.Vector as V
 
-import Data.List.Split (splitOn)
 import qualified Data.List as List
 
 data Temperature = Temperature {
@@ -45,7 +44,24 @@ data Temperature = Temperature {
 instance FromNamedRecord Temperature where
     parseNamedRecord r = Temperature <$> r .: "date" <*> r .: "daily_mean_temprature"
 
+-- 7日間の気温リストと翌日の気温をペアにする関数
+makeTemperaturePairsList :: [Float] -> [([Float], Float)]
+makeTemperaturePairsList temperatureList
+  | length temperatureList < 8 = []
+  | otherwise = (Prelude.take 7 temperatureList, temperatureList !! 7) : makeTemperaturePairsList (tail temperatureList)
 
+-- Tempature型を受け取ったらdaily_mean_tempratureを返す
+convertToTemprature :: Temperature -> Float
+convertToTemprature = daily_mean_temprature
+
+-- Vector Tempatureを受け取ったらfloatのリストを返す
+-- toList :: Vector a -> [a]
+convertToFloatLists :: (V.Vector Temperature) -> [Float]
+convertToFloatLists vector_tempature =
+  let tempature_list = V.toList vector_tempature
+  in map convertToTemprature tempature_list
+
+-- 
 model :: Linear -> Tensor -> Tensor
 model state input = squeezeAll $ linear state input
 
@@ -60,24 +76,6 @@ printParams trained = do
   putStrLn $ "Parameters:\n" ++ (show $ toDependent $ trained.weight)
   putStrLn $ "Bias:\n" ++ (show $ toDependent $ trained.bias)
 
--- 7日間の気温リストと翌日の気温をペアにする関数
-makeTemperaturePairsList :: [Float] -> [([Float], Float)]
-makeTemperaturePairsList temperatureList
-  | length temperatureList < 8 = []
-  | otherwise = (Prelude.take 7 temperatureList, temperatureList !! 7) : makeTemperaturePairsList (tail temperatureList)
-
-
--- Tempature型を受け取ったらdaily_mean_tempratureを返す
-convertToTemprature :: Temperature -> Float
-convertToTemprature = daily_mean_temprature
-
--- Vector Tempatureを受け取ったらfloatのリストを返す
--- toList :: Vector a -> [a]
-convertToFloatLists :: (V.Vector Temperature) -> [Float]
-convertToFloatLists vector_tempature =
-  let tempature_list = V.toList vector_tempature
-  in map convertToTemprature tempature_list
-
 main :: IO ()
 main = do
   -- ファイル読み込み
@@ -90,12 +88,11 @@ main = do
         Right (_, vector_tempature) -> convertToFloatLists vector_tempature -- 最初の要素:ヘッダー情報を無視
   --print train_tempature_list
 
-
   -- 7日間の気温のリストと8日目の気温の組のリスト
   let temperaturePairs = makeTemperaturePairsList train_tempature_list
   print temperaturePairs
 
-
+  -- 
   init <- sample $ LinearSpec {in_features = numFeatures, out_features = 1}
   randGen <- defaultRNG
   printParams init
