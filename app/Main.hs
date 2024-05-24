@@ -13,6 +13,7 @@ module Main where
 
 import Control.Monad (when)
 import Torch
+import ML.Exp.Chart (drawLearningCurve) --nlp-tools
 
 -- from base
 import GHC.Generics
@@ -94,24 +95,25 @@ main = do
   init <- sample $ LinearSpec {in_features = numFeatures, out_features = 1} -- モデルの初期化, 入力次元数と出力次元数を指定
   randGen <- defaultRNG -- 乱数生成器の初期化
   printParams init -- 初期化されたモデルの重みとバイアスを表示
-  (trained, _) <- foldLoop (init, randGen) numIters $ \(state, randGen) i -> do -- stateは現在のモデル状態, randGenは現在の乱数生成器, iは現在のイテレーション番号
+  (trained, _, losses) <- foldLoop (init, randGen, []) numIters $ \(state, randGen, losses) i -> do -- stateは現在のモデル状態, randGenは現在の乱数生成器, iは現在のイテレーション番号
     let (inputData, outputData) = temperaturePairs !! (i `mod` length temperaturePairs) -- データポイントを取得
         (_ , randGen') = randn' [batchSize, numFeatures] randGen
         input = asTensor inputData
         output = asTensor outputData
         (y, y') = (output, model state input)
         loss = mseLoss y y' -- 平均2乗誤差
+        lossValue = asValue loss :: Float
     when (i `mod` 100 == 0) $ do
       putStrLn $ "Iteration: " ++ show i ++ " | Loss: " ++ show loss
-    (newParam, _) <- runStep state optimizer loss 1e-7 -- パラメータを更新 学習率
-    pure (newParam, randGen') -- 乱数生成期を更新
+    (newParam, _) <- runStep state optimizer loss 1e-6 -- パラメータを更新 学習率
+    pure (newParam, randGen', losses ++ [lossValue]) -- 乱数生成期を更新
   printParams trained
+  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/linearRegression/curves/graph-avg.png" "Learning Curve" [("",losses)]
   pure ()
-  
   where
     optimizer = GD -- 勾配降下法
     defaultRNG = mkGenerator (Device CPU 0) 31415
-    batchSize = 800 -- バッチサイズ, 一度に処理するデータのサンプル数
+    batchSize = 256 -- バッチサイズ, 一度に処理するデータのサンプル数
     numIters = 2000 -- 何回ループ回すか
     numFeatures = 7 -- 入力の特徴数
 
