@@ -113,8 +113,8 @@ main = do
   where
     optimizer = GD -- 勾配降下法
     defaultRNG = mkGenerator (Device CPU 0) 31415
-    batchSize = 256 -- バッチサイズ, 一度に処理するデータのサンプル数
-    numIters = 2000 -- 何回ループ回すか
+    batchSize = 1024 -- バッチサイズ, 一度に処理するデータのサンプル数
+    numIters = 300 -- 何回ループ回すか
     numFeatures = 7 -- 入力の特徴数
 
     -- y = ax + b 
