@@ -107,11 +107,10 @@ main = do
           output = asTensor outputData
           (y, y') = (output, model state input)
           loss = mseLoss y y' -- 平均2乗誤差
-          lossValue = asValue loss :: Float
       when (i `mod` 100 == 0) $ do
         putStrLn $ "Iteration: " ++ show j ++ " | Loss: " ++ show loss
       (newParam, _) <- runStep state optimizer loss 1e-6 -- パラメータを更新 学習率
-      pure(newParam, lossValue)
+      pure(newParam, asValue loss)
     pure (trained, losses ++ [lossValue]) -- epochごとにlossを更新したい
   printParams trained
   drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/linearRegression/curves/graph-avg_batch1.png" "Learning Curve" [("",losses)]
