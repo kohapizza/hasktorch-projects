@@ -101,25 +101,27 @@ main = do
   -- block関数は現在のモデル状態とindex iを引数に取って更新された値を返す
 
   (trained, losses) <- foldLoop (init, []) numIters $ \(state, losses) i -> do -- stateは現在のモデル状態, iは現在のイテレーション番号
-    (trained, lossValue) <- foldLoop (init, 0) (length temperaturePairs) $ \(state, lossValue) j -> do
+  
+    (trained', lossValue) <- foldLoop (state, 0) (length temperaturePairs) $ \(state', lossValue) j -> do
       let (inputData, outputData) = temperaturePairs !! (j `mod` length temperaturePairs) -- データポイントを取得, length temperaturePairs:2915
           input = asTensor inputData
           output = asTensor outputData
-          (y, y') = (output, model state input)
+          (y, y') = (output, model state' input)
           loss = mseLoss y y' -- 平均2乗誤差
-      when (i `mod` 100 == 0) $ do
-        putStrLn $ "Iteration: " ++ show j ++ " | Loss: " ++ show loss
-      (newParam, _) <- runStep state optimizer loss 1e-6 -- パラメータを更新 学習率
+      when (j `mod` 100 == 0) $ do
+        putStrLn $ "epoch : " ++ show i ++ " | Iteration: " ++ show j ++ " | Loss: " ++ show loss
+      (newParam, _) <- runStep state' optimizer loss 1e-6 -- パラメータを更新 学習率
       pure(newParam, asValue loss)
-    pure (trained, losses ++ [lossValue]) -- epochごとにlossを更新したい
+
+    pure (trained', losses ++ [lossValue]) -- epochごとにlossを更新したい
   printParams trained
-  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/linearRegression/curves/graph-avg_batch1.png" "Learning Curve" [("",losses)]
+  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/linearRegression/curves/graph-avg_batch.png" "Learning Curve" [("",losses)]
   pure ()
   where
     optimizer = GD -- 勾配降下法
-    defaultRNG = mkGenerator (Device CPU 0) 31415
-    batchSize = 2048 -- バッチサイズ, 一度に処理するデータのサンプル数
-    numIters = 310 -- 何回ループ回すか
+    -- defaultRNG = mkGenerator (Device CPU 0) 31415
+    -- batchSize = 2048 -- バッチサイズ, 一度に処理するデータのサンプル数
+    numIters = 300 -- 何回ループ回すか
     numFeatures = 7 -- 入力の特徴数
 
     -- y = ax + b 
