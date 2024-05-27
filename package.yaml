@@ -29,6 +29,7 @@ dependencies:
 - utf8-string
 - text
 - vector
+- nlp-tools
 
 ghc-options:
 - -Wall
@@ -47,7 +48,7 @@ library:
 executables:
   hasktorch-projects-exe:
     main:                Main.hs
-    source-dirs:         app
+    source-dirs:         app/linearRegression
     ghc-options:
     - -threaded
     - -rtsopts
