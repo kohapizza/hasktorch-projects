@@ -89,9 +89,6 @@ main = do
   -- 7日間の気温のリストと8日目の気温の組のリスト
   let temperaturePairs = makeTemperaturePairsList train_tempature_list
 
-  -- 7日間の気温のリストと8日目の気温の組のリストをTensorの組のリストに変換
-  let preparedData = prepareData temperaturePairs
-
   init <- sample $ LinearSpec {in_features = numFeatures, out_features = 1} -- モデルの初期化, 入力次元数と出力次元数を指定
   printParams init -- 初期化されたモデルの重みとバイアスを表示
 
@@ -103,13 +100,13 @@ main = do
   (trained, losses) <- foldLoop (init, []) numIters $ \(state, losses) i -> do -- stateは現在のモデル状態, iは現在のイテレーション番号
   
     (trained', lossValue) <- foldLoop (state, 0) (length temperaturePairs) $ \(state', lossValue) j -> do
-      let (inputData, outputData) = temperaturePairs !! (j `mod` length temperaturePairs) -- データポイントを取得, length temperaturePairs:2915
+      let (inputData, outputData) = temperaturePairs !! (j - 1) -- j番目のデータポイントを取得, length temperaturePairs:2915
           input = asTensor inputData
           output = asTensor outputData
           (y, y') = (output, model state' input)
           loss = mseLoss y y' -- 平均2乗誤差
       when (j `mod` 100 == 0) $ do
-        putStrLn $ "epoch : " ++ show i ++ " | Iteration: " ++ show j ++ " | Loss: " ++ show loss
+        putStrLn $ "epoch : " ++ show i ++ " | Iteration: " ++ show j ++ " | Loss: " ++ show loss ++ " | losses : " ++ show losses ++ " | lossValue : " ++ show lossValue 
       (newParam, _) <- runStep state' optimizer loss 1e-6 -- パラメータを更新 学習率
       pure(newParam, asValue loss)
 
@@ -121,7 +118,7 @@ main = do
     optimizer = GD -- 勾配降下法
     -- defaultRNG = mkGenerator (Device CPU 0) 31415
     -- batchSize = 2048 -- バッチサイズ, 一度に処理するデータのサンプル数
-    numIters = 300 -- 何回ループ回すか
+    numIters = 200 -- 何回ループ回すか
     numFeatures = 7 -- 入力の特徴数
 
     -- y = ax + b 
