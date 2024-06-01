@@ -33,6 +33,10 @@ import qualified Data.Vector as V
 import Data.Vector as V hiding ((++), map, take, tail, filter, length, drop)
 import qualified Data.List as List
 
+-- from random
+import System.Random.Shuffle(shuffleM)
+import System.Random (newStdGen)
+
 data Temperature = Temperature {
   date :: String,
   daily_mean_temprature :: Float }
@@ -73,6 +77,11 @@ printParams trained = do
   putStrLn $ "Parameters:\n" ++ (show $ toDependent $ trained.weight)
   putStrLn $ "Bias:\n" ++ (show $ toDependent $ trained.bias)
 
+-- -- 0~Int-1のランダムな整数のリストを生成する関数
+-- randomList :: Int -> IO [Int]
+-- randomList n = do
+--   shuffleM [0..n-1] -- リストをシャッフル
+
 
 
 main :: IO ()
@@ -92,36 +101,45 @@ main = do
   init <- sample $ LinearSpec {in_features = numFeatures, out_features = 1} -- モデルの初期化, 入力次元数と出力次元数を指定
   printParams init -- 初期化されたモデルの重みとバイアスを表示
 
+  initRandomData <- shuffleM temperaturePairs -- 1回目の学習データ用
+
   -- foldLoop :: a -> Int -> (a -> Int -> IO a) -> IO a
   -- foldLoop x count block = foldM block x [1 .. count]
   -- block関数を適用しながら初期値xを更新していく
   -- block関数は現在のモデル状態とindex iを引数に取って更新された値を返す
 
-  (trained, losses) <- foldLoop (init, []) numIters $ \(state, losses) i -> do -- stateは現在のモデル状態, iは現在のイテレーション番号
-  
-    (trained', lossValue) <- foldLoop (state, 0) (length temperaturePairs) $ \(state', lossValue) j -> do
-      let (inputData, outputData) = temperaturePairs !! (j - 1) -- j番目のデータポイントを取得, length temperaturePairs:2915
+  -- 内側のループ: epoch処理, 外側のループ: バッチ処理
+  (trained, losses) <- foldLoop (init, []) numEpoch $ \(state, losses) i -> do -- stateは現在のモデル状態, iは現在のイテレーション番号
+    -- randomedListからbatchsize分をtake
+    -- そこに書いてある整数をtemperaturePairsから取り出す
+    (trained', lossValue, randomData) <- foldLoop (state, 0, initRandomData) ((length temperaturePairs) `Prelude.div` batchSize) $ \(state', lossValue, randomData) j -> do
+      let index = (j-1)*batchSize -- サブセットj個目か
+          inputDataList = Prelude.take batchSize (drop index randomData) -- バッチサイズ分だけ取ってくる
+          (inputData, outputData) = Prelude.unzip inputDataList
           input = asTensor inputData
           output = asTensor outputData
           (y, y') = (output, model state' input)
           loss = mseLoss y y' -- 平均2乗誤差
-      when (j `mod` 100 == 0) $ do
+      when (j `mod` 10 == 0) $ do
         putStrLn $ "epoch : " ++ show i ++ " | Iteration: " ++ show j ++ " | Loss: " ++ show loss ++ " | losses : " ++ show losses ++ " | lossValue : " ++ show lossValue 
       (newParam, _) <- runStep state' optimizer loss 1e-6 -- パラメータを更新 学習率
-      pure(newParam, asValue loss)
+      pure(newParam, asValue loss, randomData)
 
+    randomedtemperaturePairs <- shuffleM temperaturePairs -- 学習したいデータをシャッフル
     pure (trained', losses ++ [lossValue]) -- epochごとにlossを更新したい
+
+
   printParams trained
-  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/linearRegression/curves/graph-avg_batch.png" "Learning Curve" [("",losses)]
+  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/linearRegression/curves/graph-avg_batch64.png" "Learning Curve" [("",losses)]
   pure ()
   where
     optimizer = GD -- 勾配降下法
     -- defaultRNG = mkGenerator (Device CPU 0) 31415
-    -- batchSize = 2048 -- バッチサイズ, 一度に処理するデータのサンプル数
-    numIters = 300 -- 何回ループ回すか
+    batchSize = 64 -- バッチサイズ, 一度に処理するデータのサンプル数
+    numEpoch = 30 -- エポック数
     numFeatures = 7 -- 入力の特徴数
 
     -- y = ax + b 
     -- a: weight, b: bias
-
+    
     -- 学習率α「αが大きければ一度に大きく更新し、小さければ一度に少しずつ更新する」
