@@ -55,7 +55,7 @@ executable hasktorch-projects-exe
   autogen-modules:
       Paths_hasktorch_projects
   hs-source-dirs:
-      app/mlp
+      app/titanic
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
