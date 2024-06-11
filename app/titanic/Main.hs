@@ -1,5 +1,6 @@
 import Data.List.Split (splitOn)
 import System.IO
+import Data.List.Utils (replace)
 
 -- passengerld： 乗客者ID
 -- survived：生存状況（0＝死亡、1＝生存）
@@ -33,6 +34,11 @@ deleteColumns idxs row = foldl (\r i -> deleteColumn i r) row (reverse (sorted i
 deleteAllColumns :: [[String]] -> [Int] -> [[String]]
 deleteAllColumns parsedCsvData columnsToDelete = map (deleteColumns columnsToDelete) parsedCsvData
 
+-- 全ての行の'oldThing'を'newNum'に置き換える
+-- replace :: Eq a => [a] -> [a] -> [a] -> [a]
+replaceAll :: [String] -> [String] -> [[String]] -> [[String]]
+replaceAll oldThing newNum csvData = map (replace oldThing newNum) csvData
+
 main :: IO ()
 main = do
     let columnsToDelete = [3, 8, 10]
@@ -40,6 +46,11 @@ main = do
     -- csvData :: String
     csvData <- readFile "/home/acf16406dh/hasktorch-projects/app/titanic/data/train.csv"
     print $ take 5 $ deleteAllColumns (parseCSV csvData) columnsToDelete -- name, cabin, and ticketsの削除
+
+
+    -- 【sex】'male'を0に, 'female'を1に置き換える
+    
+    -- 【embarked】'Q'を0に, 'S'を1に, 'C'を2に置き換える
     
 
 

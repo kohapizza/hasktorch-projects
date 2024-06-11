@@ -32,6 +32,7 @@ dependencies:
 - nlp-tools
 - random
 - random-shuffle
+- MissingH
 
 ghc-options:
 - -Wall
