@@ -20,26 +20,26 @@ parseCSV :: String -> [[String]]
 parseCSV csvData = map (splitOn ",") (lines csvData)
 
 -- リストからいらない列(index番目)を消す
-deleteColum :: Int -> [String] -> [String]
-deleteColum index row = take index row ++ drop (index + 1) row
+deleteColumn :: Int -> [String] -> [String]
+deleteColumn index row = take index row ++ drop (index + 1) row
 
 -- リストから複数のいらない列を消す
-deleteColums :: [Int] -> [String] -> [String]
-deleteColums idxs row = foldl (\r i -> deleteColum i r) row (reverse (sorted idxs))
+deleteColumns :: [Int] -> [String] -> [String]
+deleteColumns idxs row = foldl (\r i -> deleteColumn i r) row (reverse (sorted idxs))
   where
     sorted = map fst . filter snd . zip [0..] . flip map idxs . flip elem
 
 -- 全ての行から複数の列を削除
-deleteAllColums :: [[String]] -> [Int] -> [[String]]
-deleteAllColums parsedCsvData columsToDelete = map (deleteColums columsToDelete) parsedCsvData
+deleteAllColumns :: [[String]] -> [Int] -> [[String]]
+deleteAllColumns parsedCsvData columnsToDelete = map (deleteColumns columnsToDelete) parsedCsvData
 
 main :: IO ()
 main = do
-    let columsToDelete = [3, 8, 10]
+    let columnsToDelete = [3, 8, 10]
     -- readFile :: FilePath -> IO String
     -- csvData :: String
     csvData <- readFile "/home/acf16406dh/hasktorch-projects/app/titanic/data/train.csv"
-    print $ take 5 $ deleteAllColums (parseCSV csvData) columsToDelete -- name, cabin, and ticketsの削除
+    print $ take 5 $ deleteAllColumns (parseCSV csvData) columnsToDelete -- name, cabin, and ticketsの削除
     
 
 
