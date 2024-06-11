@@ -30,6 +30,8 @@ dependencies:
 - text
 - vector
 - nlp-tools
+- random
+- random-shuffle
 
 ghc-options:
 - -Wall
@@ -48,7 +50,7 @@ library:
 executables:
   hasktorch-projects-exe:
     main:                Main.hs
-    source-dirs:         app/linearRegression
+    source-dirs:         app/titanic
     ghc-options:
     - -threaded
     - -rtsopts

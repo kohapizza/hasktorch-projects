@@ -10,9 +10,6 @@ import Data.List (foldl', intersperse, scanl')
 import GHC.Generics
 import Torch
 
--- train.csvを扱いやすいデータにする
-treatCSV :: filePath -> []
-
 --------------------------------------------------------------------------------
 -- MLP Multi Layer Perceptron：多層パーセプトロン
 --------------------------------------------------------------------------------
