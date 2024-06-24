@@ -9,6 +9,7 @@ import Data.Csv as Csv
 import qualified Data.Vector as V
 import Data.List (sort)
 import GHC.Generics (Generic)
+import Data.Maybe (fromMaybe, isNothing)
 
 -- passengerId： 乗客者ID  -- 消す
 -- survived：生存状況（0＝死亡、1＝生存）
@@ -24,34 +25,27 @@ import GHC.Generics (Generic)
 -- embarked： 出港地（C＝Cherbourg：シェルブール、Q＝Queenstown：クイーンズタウン、S＝Southampton：サウサンプトン）
 
 -- data構造
+-- dataが壊れている時はMaybeを使うといい
 data Passenger = Passenger{
-  passengerID :: Int,
   survived :: Maybe Int,
   pclass :: Maybe Int,
-  name :: String, 
   sex :: Maybe String,
-  age :: Maybe Int,
+  age :: Maybe Float,
   sibSp :: Maybe Int,
   parch :: Maybe Int,
-  ticket :: String,
   fare :: Maybe Float,
-  cabin :: String,
   embarked :: Maybe String
 } deriving (Generic, Show)
 
 -- CSVデータからPassenger型のデータをデコードするためのインスタンスを定義
 instance Csv.FromNamedRecord Passenger where
-    parseNamedRecord m = Passenger <$> m .: "PassengerId"
-                                   <*> m .: "Survived"
+    parseNamedRecord m = Passenger <$> m .: "Survived"
                                    <*> m .: "Pclass"
-                                   <*> m .: "Name"
                                    <*> m .: "Sex"
                                    <*> m .: "Age"
                                    <*> m .: "SibSp"
                                    <*> m .: "Parch"
-                                   <*> m .: "Ticket"
                                    <*> m .: "Fare"
-                                   <*> m .: "Cabin"
                                    <*> m .: "Embarked"
 
 
@@ -69,23 +63,55 @@ deleteColumns idxs row = foldl (flip deleteColumn) row (reverse (sort idxs))
 deleteAllColumns :: [[Float]] -> [Int] -> [[Float]]
 deleteAllColumns parsedCsvData columnsToDelete = map (deleteColumns columnsToDelete) parsedCsvData
 
--- 後で
-replaceRow :: [String] -> [String] -> [String] -> [String]
-replaceRow oldThings newThings row = foldl (\r (old, new) -> map (replace old new) r) row (zip oldThings newThings)
+-- 性別をfloatに
+sexToFloat :: Maybe String -> Maybe Float
+sexToFloat (Just "female") = Just 0.0
+sexToFloat (Just "male") = Just 1.0
+sexToFloat _ = Nothing
 
--- 後で
--- 全ての行の'oldThings'を'newThings'に置き換える
--- replace :: Eq a => [a] -> [a] -> [a] -> [a]
-replaceAll :: [String] -> [String] -> [[String]] -> [[String]]
-replaceAll oldThings newThings csvData = map (replaceRow oldThings newThings) csvData
+-- 出港地をfloatに
+embarkedToFloat :: Maybe String -> Maybe Float
+embarkedToFloat (Just "Q") = Just 0.0
+embarkedToFloat (Just "S") = Just 1.0
+embarkedToFloat (Just "C") = Just 2.0
+embarkedToFloat _ = Nothing
 
 -- Passenger型をリストに変換
--- toList :: Vector a -> [a]
 convertToFloatLists :: V.Vector Passenger -> [[Float]]
-convertToFloatLists vectorData =
-  let passengerList = V.toList vectorData
-  in map convertPassengerToList $ filter validPassenger passengerList
-  
+convertToFloatLists vectorData = 
+  let passengerList = V.toList vectorData -- Passengerのリストに
+  in map convertPassenger (filter isComplete passengerList)
+
+-- 完全なデータ行かどうかをチェック
+isComplete :: Passenger -> Bool
+isComplete p =
+  all (not . isNothing)
+    [ survived p
+    , pclass p
+    , sibSp p
+    , parch p
+    ] &&
+  all (not . isNothing)
+    [ sexToFloat (sex p)
+    , embarkedToFloat (embarked p)
+    ] && 
+  all (not . isNothing)
+    [ fare p
+    , age p
+    ]
+
+-- PassengerをFloatのリストに変換
+convertPassenger :: Passenger -> [Float]
+convertPassenger (Passenger mSurvived mPclass mSex mAge mSibSp mParch mFare mEmbarked) =
+  [ fromMaybe 0 (fmap fromIntegral mSurvived)
+  , fromMaybe 0 (fmap fromIntegral mPclass)
+  , fromMaybe 0 (sexToFloat mSex)
+  , fromMaybe 0 mAge
+  , fromMaybe 0 (fmap fromIntegral mSibSp)
+  , fromMaybe 0 (fmap fromIntegral mParch)
+  , fromMaybe 0 mFare
+  , fromMaybe 0 (embarkedToFloat mEmbarked)
+  ]
 
 -- 訓練データのフォーマットを整える
 treatData :: FilePath -> IO [[Float]]
@@ -94,32 +120,16 @@ treatData filePath = do
   -- decodeByName :: FromNamedRecord a => ByteString -> Either String (Header, Vector a)
   case decodeByName csvData of
         Left error -> do
-          putStrLn $ "Error parsing CSV" ++ error
+          putStrLn $ "Error parsing CSV: " ++ error
           return []
         Right (_, v) -> do
-          let columnsToDelete = [0, 3, 8, 10] -- passengerID, name, ticket, cabinの削除
+          -- let columnsToDelete = [0, 3, 8, 10] -- passengerID, name, ticket, cabinの削除
           let floatLists = convertToFloatLists v
-          return $ deleteAllColumns floatLists columnsToDelete
-
-
-       --   let deletedAllColumns = deleteAllColumns (convertToFloatLists v) columnsToDelete -- いらない行の削除
-         -- return deletedAllColumns
-
-  
-  -- let parsedCsvData = parseCSV csvData -- csvデータをリストに変換
-
+          -- return $ deleteAllColumns floatLists columnsToDelete -- いらない列消す
+          return floatLists
 
 
 main :: IO ()
 main = do
   treatedData <- treatData "/home/acf16406dh/hasktorch-projects/app/titanic/data/train.csv"
-  print $ take 5 treatedData
-
-      -- 【sex】'male'を0に, 'female'を1に置き換える
-    -- let replacedSexData = replaceAll ["male", "female"] ["0", "1"] treatedData
-    -- print $ take 5 replacedSexData
-
-
-    -- 【sex】'male'を0に, 'female'を1に置き換える
-    
-    -- 【embarked】'Q'を0に, 'S'を1に, 'C'を2に置き換える
+  print $ take 10 treatedData
