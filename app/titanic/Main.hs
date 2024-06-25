@@ -85,12 +85,12 @@ embarkedToFloat _ = Nothing
 convertToFloatLists :: V.Vector Passenger -> [[Float]]
 convertToFloatLists vectorData = 
   let passengerList = V.toList vectorData -- Passengerのリストに
-  in map convertPassenger (filter isComplete passengerList)
+  in map convertPassenger (filter isCompleteData passengerList)
 
 -- 完全なデータ行かどうかをチェック
-isComplete :: Passenger -> Bool
-isComplete p =
-  all (not . isNothing)
+isCompleteData :: Passenger -> Bool
+isCompleteData p =
+  all (not . isNothing) -- allは型一緒じゃないと使えない
     [ survived p
     , pclass p
     , sibSp p
@@ -152,8 +152,11 @@ main :: IO ()
 main = do
   treatedData <- treatData "/home/acf16406dh/hasktorch-projects/app/titanic/data/train.csv"
   let passengerPairs = makePairsList treatedData -- ([他の情報], 生存)のリスト
-  print $ take 5 passengerPairs
+  print $ take 5 passengerPairs -- OK
   print $ length passengerPairs -- 712
+
+  -- データをsffuleしてみる sffuleM
+
 
   -- データをトレーニング用と評価用に分ける
   -- 20%(142)を検証用に, 80%(570)をトレーニング用に使う
@@ -165,29 +168,31 @@ main = do
   let iter = 300::Int
       batchSize = 64::Int
       device = Device CUDA 0
-      hypParams = MLPHypParams device 7 [(10,Sigmoid),(1,Sigmoid)]
+      hypParams = MLPHypParams device 7 [(60,Sigmoid),(1,Sigmoid)] -- 入力層のノード数:7,隠れ層のノード層:60,出力層:1
 
   -- 初期モデル
   initModel <- sample hypParams
 
-  ((trainedModel,_),losses) <- mapAccumM [1..iter] (initModel,GD) $ \epoc (model,opt) -> do -- 各エポックでモデルを更新し、損失を蓄積。
+  ((trainedModel,_),losses) <- mapAccumM [1..iter] (initModel,GD) $ \epoc (model,opt) -> do -- 各エポックでモデルを更新し、損失を出していく
     let trainLoss = sumTensors $ for (makeBatches trainingData batchSize) $ \batch ->
                   let loss = sumTensors $ for batch $ \(input, grandTruth) ->
                         let y = asTensor'' device grandTruth
                             y' = mlpLayer model $ asTensor'' device input
                         in mseLoss y y' -- 誤差計算
-                  in loss / fromIntegral batchSize
+                  -- fromIntegral :: (Integral a, Num b) => a -> b
+                  in loss / fromIntegral batchSize -- バッチサイズで割る
         trainLossValue = (asValue trainLoss)::Float
+
+    showLoss 10 epoc trainLossValue 
+    u <- update model opt trainLoss 1e-3
 
     let validLoss = sumTensors $ for (makeBatches validationData batchSize) $ \batch ->
                   let loss = sumTensors $ for batch $ \(input,groundTruth) ->
                         let y = asTensor'' device groundTruth
-                            y' = mlpLayer model $ asTensor'' device input
-                        in mseLoss y y'  -- 平均二乗誤差を計算
+                            y' = mlpLayer (fst u) $ asTensor'' device input
+                        in mseLoss y y'
                   in loss / fromIntegral batchSize
         validLossValue = (asValue validLoss)::Float  -- 消失テンソルをFloat値に変換
-    showLoss 10 epoc trainLossValue 
-    u <- update model opt trainLoss 1e-3
     return (u, (trainLossValue, validLossValue))
   
   let (trainLosses, validLosses) = unzip losses   -- lossesを分解する
