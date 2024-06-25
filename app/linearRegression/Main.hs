@@ -123,8 +123,6 @@ main = do
   -- 7日間の気温のリストと8日目の気温の組のリスト
   let validTemperaturePairs = makeTemperaturePairsList valid_tempature_list
 
-
-
   init <- sample $ LinearSpec {in_features = numFeatures, out_features = 1} -- モデルの初期化, 入力次元数と出力次元数を指定
   printParams init -- 初期化されたモデルの重みとバイアスを表示
 
