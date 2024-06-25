@@ -1,5 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RecordWildCards #-}
+
+module Main where
 
 import Data.List.Split (splitOn)
 import qualified Data.ByteString.Lazy as BL
@@ -10,6 +14,22 @@ import qualified Data.Vector as V
 import Data.List (sort)
 import GHC.Generics (Generic)
 import Data.Maybe (fromMaybe, isNothing)
+import Torch.Layer.MLP (MLPHypParams(..), ActName(..), mlpLayer, MLPParams)
+
+import Prelude hiding (tanh) 
+import Control.Monad (forM_)        --base
+--import Data.List (cycle)          --base
+--hasktorch
+import Torch.Tensor       (asValue)
+import Torch.Functional   (mseLoss)
+import Torch.Device       (Device(..),DeviceType(..))
+import Torch.NN           (sample)
+import Torch.Train        (update,showLoss,sumTensors)
+import Torch.Control      (mapAccumM)
+import Torch.Optim        (GD(..))
+import Torch.Tensor.TensorFactories (asTensor'')
+import Torch.Layer.MLP    (MLPHypParams(..),ActName(..),mlpLayer)
+import ML.Exp.Chart   (drawLearningCurve) --nlp-tools
 
 -- passengerId： 乗客者ID  -- 消す
 -- survived：生存状況（0＝死亡、1＝生存）
@@ -47,21 +67,6 @@ instance Csv.FromNamedRecord Passenger where
                                    <*> m .: "Parch"
                                    <*> m .: "Fare"
                                    <*> m .: "Embarked"
-
-
--- リストからいらない列(index番目)を消す
-deleteColumn :: Int -> [Float] -> [Float]
-deleteColumn index row = take index row ++ drop (index + 1) row
-
--- リストから複数のいらない列を消す
--- foldl: リストを畳み込む
--- 「左畳み込み」と呼ばれ、リストの要素を左から右へと順番に処理する
-deleteColumns :: [Int] -> [Float] -> [Float]
-deleteColumns idxs row = foldl (flip deleteColumn) row (reverse (sort idxs))
-
--- 全ての行から複数の列を削除
-deleteAllColumns :: [[Float]] -> [Int] -> [[Float]]
-deleteAllColumns parsedCsvData columnsToDelete = map (deleteColumns columnsToDelete) parsedCsvData
 
 -- 性別をfloatに
 sexToFloat :: Maybe String -> Maybe Float
@@ -113,6 +118,20 @@ convertPassenger (Passenger mSurvived mPclass mSex mAge mSibSp mParch mFare mEmb
   , fromMaybe 0 (embarkedToFloat mEmbarked)
   ]
 
+-- 生存とそれ以外の情報のペアにする関数
+makePair :: [Float] -> ([Float], Float)
+makePair passenger = (tail passenger, passenger !! 0)
+
+
+-- 生存とそれ以外の情報のペアのリストにする関数
+makePairsList :: [[Float]] -> [([Float], Float)]
+makePairsList passengerList = map makePair passengerList
+
+-- リストを指定されたバッチサイズに従って分割
+makeBatches :: [a] -> Int -> [[a]]
+makeBatches [] _ = []
+makeBatches xs n = take n xs : makeBatches (drop n xs) n
+
 -- 訓練データのフォーマットを整える
 treatData :: FilePath -> IO [[Float]]
 treatData filePath = do
@@ -132,4 +151,46 @@ treatData filePath = do
 main :: IO ()
 main = do
   treatedData <- treatData "/home/acf16406dh/hasktorch-projects/app/titanic/data/train.csv"
-  print $ take 10 treatedData
+  let passengerPairs = makePairsList treatedData -- ([他の情報], 生存)のリスト
+  print $ take 5 passengerPairs
+  print $ length passengerPairs -- 712
+
+  -- データをトレーニング用と評価用に分ける
+  -- 20%(142)を検証用に, 80%(570)をトレーニング用に使う
+  let (trainingData, validationData) = (take 570 passengerPairs, drop 570 passengerPairs)
+  print $ take 5 trainingData -- OK
+  print $ take 5 validationData -- OK
+
+  -- 設定
+  let iter = 300::Int
+      batchSize = 64::Int
+      device = Device CUDA 0
+      hypParams = MLPHypParams device 7 [(10,Sigmoid),(1,Sigmoid)]
+
+  -- 初期モデル
+  initModel <- sample hypParams
+
+  ((trainedModel,_),losses) <- mapAccumM [1..iter] (initModel,GD) $ \epoc (model,opt) -> do -- 各エポックでモデルを更新し、損失を蓄積。
+    let trainLoss = sumTensors $ for (makeBatches trainingData batchSize) $ \batch ->
+                  let loss = sumTensors $ for batch $ \(input, grandTruth) ->
+                        let y = asTensor'' device grandTruth
+                            y' = mlpLayer model $ asTensor'' device input
+                        in mseLoss y y' -- 誤差計算
+                  in loss / fromIntegral batchSize
+        trainLossValue = (asValue trainLoss)::Float
+
+    let validLoss = sumTensors $ for (makeBatches validationData batchSize) $ \batch ->
+                  let loss = sumTensors $ for batch $ \(input,groundTruth) ->
+                        let y = asTensor'' device groundTruth
+                            y' = mlpLayer model $ asTensor'' device input
+                        in mseLoss y y'  -- 平均二乗誤差を計算
+                  in loss / fromIntegral batchSize
+        validLossValue = (asValue validLoss)::Float  -- 消失テンソルをFloat値に変換
+    showLoss 10 epoc trainLossValue 
+    u <- update model opt trainLoss 1e-3
+    return (u, (trainLossValue, validLossValue))
+  
+  let (trainLosses, validLosses) = unzip losses   -- lossesを分解する
+  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/titanic/curves/graph.png" "Learning Curve" [("Training", reverse trainLosses), ("Validation", reverse validLosses)]
+  -- print trainedModel
+  where for = flip map
