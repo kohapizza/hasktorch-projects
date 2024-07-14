@@ -30,6 +30,7 @@ import Torch.Optim        (GD(..))
 import Torch.Tensor.TensorFactories (asTensor'')
 import Torch.Layer.MLP    (MLPHypParams(..),ActName(..),mlpLayer)
 import ML.Exp.Chart   (drawLearningCurve) --nlp-tools
+import System.Random.Shuffle
 
 -- passengerId： 乗客者ID  -- 消す
 -- survived：生存状況（0＝死亡、1＝生存）
@@ -155,12 +156,13 @@ main = do
   print $ take 5 passengerPairs -- OK
   print $ length passengerPairs -- 712
 
-  -- データをsffuleしてみる sffuleM
-
+  -- データをシャッフル
+  -- shuffleM :: MonadRandom m => [a] -> m [a]
+  sffuledPassengerPairs <- shuffleM passengerPairs
 
   -- データをトレーニング用と評価用に分ける
   -- 20%(142)を検証用に, 80%(570)をトレーニング用に使う
-  let (trainingData, validationData) = (take 570 passengerPairs, drop 570 passengerPairs)
+  let (trainingData, validationData) = (take 570 sffuledPassengerPairs, drop 570 sffuledPassengerPairs)
   print $ take 5 trainingData -- OK
   print $ take 5 validationData -- OK
 
