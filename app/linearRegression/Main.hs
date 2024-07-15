@@ -92,8 +92,6 @@ validModel state validData = do
       loss = mseLoss y y' -- 平均2乗誤差
   return $ asValue loss
 
-  
-
           
 main :: IO ()
 main = do
