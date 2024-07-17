@@ -24,7 +24,7 @@ import Torch.Tensor       (asValue)
 import Torch.Functional   (mseLoss)
 import Torch.Device       (Device(..),DeviceType(..))
 import Torch.NN           (sample)
-import Torch.Train        (update,showLoss,sumTensors)
+import Torch.Train        (update,showLoss,sumTensors,saveParams,loadParams)
 import Torch.Control      (mapAccumM)
 import Torch.Optim        (GD(..))
 import Torch.Tensor.TensorFactories (asTensor'')
@@ -224,6 +224,12 @@ main = do
                   in loss / fromIntegral iterForValid
         validLossValue = (asValue validLoss)::Float  -- 消失テンソルをFloat値に変換
     return (u, (trainLossValue, validLossValue))
+  
+  -- モデルの保存
+  saveParams trainedModel "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model.pt"
+
+  -- モデルの再利用
+  -- model <- loadParams hypParams "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model.pt"
   
     
 
