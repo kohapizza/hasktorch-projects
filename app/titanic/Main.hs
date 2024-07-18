@@ -265,36 +265,31 @@ main = do
 
   -- 外側のループ: epoch処理, 内側のループ: バッチ処理
   ((trainedModel,_),losses) <- mapAccumM [1..epoch] (initModel,GD) $ \epoc (model,opt) -> do -- 各エポックでモデルを更新し、損失を出していく
+
+    -- for :: [a] -> (a -> b) -> [b] mapの引数の順番を逆にしたもの
+    -- for = flip map
+    let trainLoss = sumTensors $ for (init (makeBatches trainingData batchSize)) $ \batch -> -- 最後のバッチサイズ分無い要素は取り除く, trainLoss:1エポックでのバッチの合計loss
+                  let (inputs, grandTruths) = unzip batch
+                      y = asTensor'' device grandTruths -- 正解データをまとめてテンソルに変換
+                      y' = mlpLayer model $ asTensor'' device inputs -- 予測データをまとめて計算
+                      loss = mseLoss y y' -- 誤差計算
+                  in loss / fromIntegral batchSize -- loss:各バッチでのloss
+        trainLossValue = (asValue (trainLoss / fromIntegral iterForTrain))::Float
     
-    let trainLoss = sumTensors $ for (init (makeBatches trainingData batchSize) ) $ \batch -> -- 最後のバッチサイズ分無い要素は取り除く
-                  
-                  let loss = sumTensors $ for batch $ \(input, grandTruth) -> -- loss:各バッチでのloss
-                        let y = asTensor'' device grandTruth -- 正解データ
-                            y' = mlpLayer model $ asTensor'' device input -- 予測データ
-                        in mseLoss y y' -- 誤差計算 mseLoss : Tensor
-                        
-                  -- fromIntegral :: (Integral a, Num b) => a -> b
-                  -- in loss / fromIntegral batchSize -- バッチサイズで割る
-                  -- バッチサイズで割るのではなく、length makeBatches trainingData batchSize で割るべき
-                  -- in loss / length makeBatches trainingData batchSize
-                  
-                  in loss / fromIntegral batchSize
-        trainLossValue = (asValue (trainLoss / fromIntegral iterForTrain))::Float -- trainLoss:1エポックでのバッチの合計loss
     -- epochが10の倍数ごとにLossを表示
     showLoss 10 epoc trainLossValue 
-
-    
 
     -- モデルの更新
     u <- update model opt trainLoss 1e-3
 
-    let validLoss = sumTensors $ for (init (makeBatches validationData batchSize) ) $ \batch ->
-                  let loss = sumTensors $ for batch $ \(input,groundTruth) ->
-                        let y = asTensor'' device groundTruth
-                            y' = mlpLayer (fst u) $ asTensor'' device input
-                        in mseLoss y y'
+    let validLoss = sumTensors $ for (init (makeBatches validationData batchSize)) $ \batch ->
+                  let (inputs, groundTruths) = unzip batch
+                      y = asTensor'' device groundTruths -- 正解データをまとめてテンソルに変換
+                      y' = mlpLayer (fst u) $ asTensor'' device inputs -- 予測データをまとめて計算
+                      loss = mseLoss y y'
                   in loss / fromIntegral batchSize
         validLossValue = (asValue (validLoss / fromIntegral iterForValid))::Float  -- 消失テンソルをFloat値に変換
+
     return (u, (trainLossValue, validLossValue))
   
   -- モデルの保存
@@ -304,6 +299,6 @@ main = do
   -- model <- loadParams hypParams "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model.pt"
   
   let (trainLosses, validLosses) = unzip losses   -- lossesを分解する
-  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/titanic/curves/graph2.png" "Learning Curve" [("Training", reverse trainLosses), ("Validation", reverse validLosses)]
+  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/titanic/curves/graph_batch.png" "Learning Curve" [("Training", reverse trainLosses), ("Validation", reverse validLosses)]
   -- print trainedModel
   where for = flip map
