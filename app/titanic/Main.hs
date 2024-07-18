@@ -45,7 +45,7 @@ import System.Random.Shuffle
 -- cabin： 客室番号  -- 消す
 -- embarked： 出港地（C＝Cherbourg：シェルブール、Q＝Queenstown：クイーンズタウン、S＝Southampton：サウサンプトン）
 
--- data構造
+-- train.csv用のdata構造
 -- dataが壊れている時はMaybeを使うといい
 data Passenger = Passenger{
   survived :: Maybe Int,
@@ -58,7 +58,18 @@ data Passenger = Passenger{
   embarked :: Maybe String
 } deriving (Generic, Show)
 
--- CSVデータからPassenger型のデータをデコードするためのインスタンスを定義
+-- test.csv用のdata構造
+data PassengerForTest = PassengerForTest{
+  pclassTest :: Maybe Int,
+  sexTest :: Maybe String,
+  ageTest :: Maybe Float,
+  sibSpTest :: Maybe Int,
+  parchTest :: Maybe Int,
+  fareTest :: Maybe Float,
+  embarkedTest :: Maybe String
+} deriving (Generic, Show)
+
+-- 訓練CSVデータからPassenger型のデータをデコードするためのインスタンスを定義
 instance Csv.FromNamedRecord Passenger where
     parseNamedRecord m = Passenger <$> m .: "Survived"
                                    <*> m .: "Pclass"
@@ -68,6 +79,16 @@ instance Csv.FromNamedRecord Passenger where
                                    <*> m .: "Parch"
                                    <*> m .: "Fare"
                                    <*> m .: "Embarked"
+
+-- テストCSVデータからPassengerForTest型のデータをデコードするためのインスタンスを定義
+instance Csv.FromNamedRecord PassengerForTest where
+    parseNamedRecord m = PassengerForTest <$> m .: "Pclass"
+                                          <*> m .: "Sex"
+                                          <*> m .: "Age"
+                                          <*> m .: "SibSp"
+                                          <*> m .: "Parch"
+                                          <*> m .: "Fare"
+                                          <*> m .: "Embarked"
 
 -- 性別をfloatに
 sexToFloat :: Maybe String -> Maybe Float
@@ -88,6 +109,12 @@ convertToFloatLists vectorData =
   let passengerList = V.toList vectorData -- Passengerのリストに
   in map convertPassenger (filter isCompleteData passengerList)
 
+-- PassengerForTest型をリストに変換
+convertToFloatListsForTest :: V.Vector PassengerForTest -> [[Float]]
+convertToFloatListsForTest vectorData = 
+  let passengerList = V.toList vectorData -- PassengerForTestのリストに
+  in map convertPassengerForTest (filter isCompleteDataForTest passengerList)
+
 -- 完全なデータ行かどうかをチェック
 isCompleteData :: Passenger -> Bool
 isCompleteData p =
@@ -106,6 +133,24 @@ isCompleteData p =
     , age p
     ]
 
+-- テストデータにおいて完全なデータ行かどうかをチェック
+-- ここでデータが不完全なものは別の値で補完するようにする！！！！！！！！！！
+isCompleteDataForTest :: PassengerForTest -> Bool
+isCompleteDataForTest p =
+  all (not . isNothing) -- allは型一緒じゃないと使えない
+    [ pclassTest p
+    , sibSpTest p
+    , parchTest p
+    ] &&
+  all (not . isNothing)
+    [ sexToFloat (sexTest p)
+    , embarkedToFloat (embarkedTest p)
+    ] && 
+  all (not . isNothing)
+    [ fareTest p
+    , ageTest p
+    ]
+
 -- PassengerをFloatのリストに変換
 convertPassenger :: Passenger -> [Float]
 convertPassenger (Passenger mSurvived mPclass mSex mAge mSibSp mParch mFare mEmbarked) =
@@ -119,10 +164,21 @@ convertPassenger (Passenger mSurvived mPclass mSex mAge mSibSp mParch mFare mEmb
   , fromMaybe 0 (embarkedToFloat mEmbarked)
   ]
 
+-- PassengerForTestをFloatのリストに変換
+convertPassengerForTest :: PassengerForTest -> [Float]
+convertPassengerForTest (PassengerForTest mPclass mSex mAge mSibSp mParch mFare mEmbarked) =
+  [ fromMaybe 0 (fmap fromIntegral mPclass)
+  , fromMaybe 0 (sexToFloat mSex)
+  , fromMaybe 0 mAge
+  , fromMaybe 0 (fmap fromIntegral mSibSp)
+  , fromMaybe 0 (fmap fromIntegral mParch)
+  , fromMaybe 0 mFare
+  , fromMaybe 0 (embarkedToFloat mEmbarked)
+  ]
+
 -- 生存とそれ以外の情報のペアにする関数
 makePair :: [Float] -> ([Float], Float)
 makePair passenger = (tail passenger, passenger !! 0)
-
 
 -- 生存とそれ以外の情報のペアのリストにする関数
 makePairsList :: [[Float]] -> [([Float], Float)]
@@ -144,14 +200,26 @@ treatData filePath = do
           putStrLn $ "Error parsing CSV: " ++ error
           return []
         Right (_, v) -> do
-          -- let columnsToDelete = [0, 3, 8, 10] -- passengerID, name, ticket, cabinの削除
           let floatLists = convertToFloatLists v
-          -- return $ deleteAllColumns floatLists columnsToDelete -- いらない列消す
+          return floatLists
+
+-- テストデータのフォーマットを整える
+treatTestData :: FilePath -> IO [[Float]]
+treatTestData filePath = do
+  csvData <- BL.readFile filePath -- ファイル読み込み
+  -- decodeByName :: FromNamedRecord a => ByteString -> Either String (Header, Vector a)
+  case decodeByName csvData of
+        Left error -> do
+          putStrLn $ "Error parsing CSV: " ++ error
+          return []
+        Right (_, v) -> do
+          let floatLists = convertToFloatListsForTest v
           return floatLists
 
 
 main :: IO ()
 main = do
+  -- 訓練用データの読み込み
   treatedData <- treatData "/home/acf16406dh/hasktorch-projects/app/titanic/data/train.csv"
   let passengerPairs = makePairsList treatedData -- ([他の情報], 生存)のリスト
   -- print $ take 5 passengerPairs -- OK
@@ -168,6 +236,10 @@ main = do
   -- 一例:
   -- [([1.0,0.0,22.0,0.0,0.0,151.55,1.0],1.0),([3.0,1.0,32.0,0.0,0.0,8.05,1.0],1.0),([3.0,1.0,41.0,0.0,0.0,7.125,1.0],0.0),([1.0,0.0,26.0,0.0,0.0,78.85,1.0],1.0),([3.0,1.0,22.0,0.0,0.0,7.7958,1.0],0.0)]
   -- print $ take 5 validationData -- OK
+
+  -- テスト用データの読み込み
+  treatedTestData <- treatTestData "/home/acf16406dh/hasktorch-projects/app/titanic/data/test.csv"
+  print $ length treatedTestData -- 331 本当は 419
 
   -- 設定
   let epoch = 300::Int
@@ -196,7 +268,7 @@ main = do
     
     let trainLoss = sumTensors $ for (init (makeBatches trainingData batchSize) ) $ \batch -> -- 最後のバッチサイズ分無い要素は取り除く
                   
-                  let loss = sumTensors $ for batch $ \(input, grandTruth) ->
+                  let loss = sumTensors $ for batch $ \(input, grandTruth) -> -- loss:各バッチでのloss
                         let y = asTensor'' device grandTruth -- 正解データ
                             y' = mlpLayer model $ asTensor'' device input -- 予測データ
                         in mseLoss y y' -- 誤差計算 mseLoss : Tensor
@@ -206,8 +278,8 @@ main = do
                   -- バッチサイズで割るのではなく、length makeBatches trainingData batchSize で割るべき
                   -- in loss / length makeBatches trainingData batchSize
                   
-                  in loss / fromIntegral iterForTrain
-        trainLossValue = (asValue trainLoss)::Float
+                  in loss / fromIntegral batchSize
+        trainLossValue = (asValue (trainLoss / fromIntegral iterForTrain))::Float -- trainLoss:1エポックでのバッチの合計loss
     -- epochが10の倍数ごとにLossを表示
     showLoss 10 epoc trainLossValue 
 
@@ -221,19 +293,17 @@ main = do
                         let y = asTensor'' device groundTruth
                             y' = mlpLayer (fst u) $ asTensor'' device input
                         in mseLoss y y'
-                  in loss / fromIntegral iterForValid
-        validLossValue = (asValue validLoss)::Float  -- 消失テンソルをFloat値に変換
+                  in loss / fromIntegral batchSize
+        validLossValue = (asValue (validLoss / fromIntegral iterForValid))::Float  -- 消失テンソルをFloat値に変換
     return (u, (trainLossValue, validLossValue))
   
   -- モデルの保存
-  saveParams trainedModel "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model.pt"
+  -- saveParams trainedModel "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model.pt"
 
   -- モデルの再利用
   -- model <- loadParams hypParams "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model.pt"
   
-    
-
   let (trainLosses, validLosses) = unzip losses   -- lossesを分解する
-  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/titanic/curves/graph.png" "Learning Curve" [("Training", reverse trainLosses), ("Validation", reverse validLosses)]
+  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/titanic/curves/graph2.png" "Learning Curve" [("Training", reverse trainLosses), ("Validation", reverse validLosses)]
   -- print trainedModel
   where for = flip map
