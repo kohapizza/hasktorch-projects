@@ -280,7 +280,8 @@ main = do
     showLoss 10 epoc trainLossValue 
 
     -- モデルの更新
-    u <- update model opt trainLoss 1e-3
+    -- バッチサイズが大きくなれば学習率を大きくしてもOK
+    u <- update model opt trainLoss 1e-1
 
     let validLoss = sumTensors $ for (init (makeBatches validationData batchSize)) $ \batch ->
                   let (inputs, groundTruths) = unzip batch
