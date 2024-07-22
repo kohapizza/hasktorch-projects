@@ -32,6 +32,8 @@ import Torch.Layer.MLP    (MLPHypParams(..),ActName(..),mlpLayer)
 import ML.Exp.Chart   (drawLearningCurve) --nlp-tools
 import System.Random.Shuffle
 
+import Control.Monad (foldM) 
+
 -- passengerId： 乗客者ID  -- 消す
 -- survived：生存状況（0＝死亡、1＝生存）
 -- pclass： 旅客クラス（1＝1等、2＝2等、3＝3等）。裕福さの目安となる
@@ -250,48 +252,46 @@ main = do
   -- 初期モデル
   initModel <- sample hypParams
 
+  -- バッチサイズ分のデータが何個取れるか
+  let iterForTrain = (length $ makeBatches trainingData batchSize) -1
+  let iterForValid = (length $ makeBatches validationData batchSize) -1
+
   -- mapAccumM :: (Monad m, Foldable t) => t a -> b -> (a -> b -> m (b,c)) -> m (b, [c])
   -- [1..iter] : 畳み込むリスト
   -- (initModel, GD) : アキュムレーターの初期値
   -- その後の2引数関数 : 各要素の対して適用する関数。epoch : リストの現在の要素。 (model, opt) : アキュムレータのタプル
 
-  -- print $ length $ makeBatches trainingData batchSize -- 9
-  -- print $ length $ makeBatches validationData batchSize -- 3
-
-  -- バッチサイズ分のデータが何個取れるか
-  let iterForTrain = (length $ makeBatches trainingData batchSize) -1
-  let iterForValid = (length $ makeBatches validationData batchSize) -1
-
-
   -- 外側のループ: epoch処理, 内側のループ: バッチ処理
-  ((trainedModel,_),losses) <- mapAccumM [1..epoch] (initModel,GD) $ \epoc (model,opt) -> do -- 各エポックでモデルを更新し、損失を出していく
+  ((trainedModel, _), losses) <- mapAccumM [1..epoch] (initModel, GD) $ \epoc (model, opt) -> do
 
-    -- for :: [a] -> (a -> b) -> [b] mapの引数の順番を逆にしたもの
-    -- for = flip map
-    let trainLoss = sumTensors $ for (init (makeBatches trainingData batchSize)) $ \batch -> -- 最後のバッチサイズ分無い要素は取り除く, trainLoss:1エポックでのバッチの合計loss
-                  let (inputs, grandTruths) = unzip batch
-                      y = asTensor'' device grandTruths -- 正解データをまとめてテンソルに変換
-                      y' = mlpLayer model $ asTensor'' device inputs -- 予測データをまとめて計算
-                      loss = mseLoss y y' -- 誤差計算
-                  in loss / fromIntegral batchSize -- loss:各バッチでのloss
-        trainLossValue = (asValue (trainLoss / fromIntegral iterForTrain))::Float
-    
+    -- 各エポックでモデルを更新し、損失を出していく
+    let flatTrainingData = concat (init (makeBatches trainingData batchSize)) -- バッチデータをフラットにする
+    -- foldM :: (Foldable t, Monad m) => (b -> a -> m b) -> b -> t a -> m b
+    (trainLoss, model') <- foldM (\(accLoss, model') batch -> do
+        let (inputs, grandTruths) = unzip batch
+            y = asTensor'' device grandTruths -- 正解データ
+            y' = mlpLayer model' $ asTensor'' device inputs -- 予測データ
+            loss = mseLoss y y' -- 誤差計算 mseLoss : Tensor
+        -- バッチごとにモデルの更新を行う
+        updatedModel <- update model' opt loss 1e-3
+        let newLoss = accLoss + loss / fromIntegral batchSize
+        return (newLoss, fst updatedModel)
+      ) (0, model) (makeBatches flatTrainingData batchSize)
+
+    let trainLossValue = (asValue $ trainLoss / fromIntegral iterForTrain) :: Float
+
     -- epochが10の倍数ごとにLossを表示
     showLoss 10 epoc trainLossValue 
-
-    -- モデルの更新
-    -- バッチサイズが大きくなれば学習率を大きくしてもOK
-    u <- update model opt trainLoss 1e-1
-
+  
     let validLoss = sumTensors $ for (init (makeBatches validationData batchSize)) $ \batch ->
                   let (inputs, groundTruths) = unzip batch
                       y = asTensor'' device groundTruths -- 正解データをまとめてテンソルに変換
-                      y' = mlpLayer (fst u) $ asTensor'' device inputs -- 予測データをまとめて計算
+                      y' = mlpLayer model' $ asTensor'' device inputs -- 予測データをまとめて計算
                       loss = mseLoss y y'
                   in loss / fromIntegral batchSize
         validLossValue = (asValue (validLoss / fromIntegral iterForValid))::Float  -- 消失テンソルをFloat値に変換
 
-    return (u, (trainLossValue, validLossValue))
+    return ((model',opt), (trainLossValue, validLossValue))
   
   -- モデルの保存
   -- saveParams trainedModel "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model.pt"
