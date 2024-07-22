@@ -294,12 +294,12 @@ main = do
     return ((model',opt), (trainLossValue, validLossValue))
   
   -- モデルの保存
-  -- saveParams trainedModel "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model.pt"
+  saveParams trainedModel "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model_batch64.pt"
 
   -- モデルの再利用
   -- model <- loadParams hypParams "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model.pt"
   
   let (trainLosses, validLosses) = unzip losses   -- lossesを分解する
-  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/titanic/curves/graph_batch.png" "Learning Curve" [("Training", reverse trainLosses), ("Validation", reverse validLosses)]
+  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/titanic/curves/graph_batch64.png" "Learning Curve" [("Training", reverse trainLosses), ("Validation", reverse validLosses)]
   -- print trainedModel
   where for = flip map
