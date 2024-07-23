@@ -157,7 +157,7 @@ main = do
         hypParams = MLPHypParams device 7 [(60,Sigmoid),(1,Sigmoid)] -- 入力層のノード数:7,隠れ層のノード層:60,出力層:1
     
     -- モデルのロード
-    model <- loadParams hypParams "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model_batch64.pt"
+    model <- loadParams hypParams "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model_batch128.pt"
     
     -- 評価データに対する予測を行う
     let predictions = map (\input -> 

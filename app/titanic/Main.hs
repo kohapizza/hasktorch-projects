@@ -246,7 +246,7 @@ main = do
 
   -- 設定
   let epoch = 300::Int
-      batchSize = 64::Int
+      batchSize = 128::Int
       device = Device CUDA 0
       hypParams = MLPHypParams device 7 [(60,Sigmoid),(1,Sigmoid)] -- 入力層のノード数:7,隠れ層のノード層:60,出力層:1
 
@@ -274,7 +274,7 @@ main = do
             y' = mlpLayer model' $ asTensor'' device inputs -- 予測データ
             loss = mseLoss y y' -- 誤差計算 mseLoss : Tensor
         -- バッチごとにモデルの更新を行う
-        updatedModel <- update model' opt loss 1e-3
+        updatedModel <- update model' opt loss 1e-4
         let newLoss = accLoss + loss / fromIntegral batchSize
         return (newLoss, fst updatedModel)
       ) (0, model) (makeBatches flatTrainingData batchSize)
@@ -295,12 +295,12 @@ main = do
     return ((model',opt), (trainLossValue, validLossValue))
   
   -- モデルの保存
-  saveParams trainedModel "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model_batch64.pt"
+  saveParams trainedModel "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model_batch128.pt"
 
   -- モデルの再利用
   -- model <- loadParams hypParams "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model.pt"
   
   let (trainLosses, validLosses) = unzip losses   -- lossesを分解する
-  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/titanic/curves/graph_batch64.png" "Learning Curve" [("Training", reverse trainLosses), ("Validation", reverse validLosses)]
+  drawLearningCurve "/home/acf16406dh/hasktorch-projects/app/titanic/curves/graph_batch128.png" "Learning Curve" [("Training", reverse trainLosses), ("Validation", reverse validLosses)]
   -- print trainedModel
   where for = flip map
