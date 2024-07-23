@@ -51,7 +51,7 @@ library:
 executables:
   hasktorch-projects-exe:
     main:                Main.hs
-    source-dirs:         app/titanic
+    source-dirs:         app/evaluationScores
     ghc-options:
     - -threaded
     - -rtsopts
