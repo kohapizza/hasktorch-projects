@@ -120,7 +120,7 @@ data Metrics = Metrics {
     recall :: Float
 } deriving Show
 
-calculateMetrics :: [Float] -> [Float] -> Metrics
+calculateMetrics :: [Float] -> [Float] -> (Metrics, [Float])
 calculateMetrics predictions actuals = 
     let
         tp = fromIntegral $ length $ filter (\(p, a) -> p == 1 && a == 1) $ zip predictions actuals -- 予測と値のペアのリストにする
@@ -130,9 +130,9 @@ calculateMetrics predictions actuals =
         accuracy = (tp + tn) / (tp + tn + fp + fn)
         precision = tp / (tp + fp)
         recall = tp / (tp + fn)
-        -- 分母が0になるときの実装！！！！
+        -- 分母が0になるときの実装！！！！0になったらどうしたらいい？
     in
-        Metrics accuracy precision recall
+        (Metrics accuracy precision recall, [tp, tn, fp, fn])
 
 main :: IO ()
 main = do
@@ -157,7 +157,7 @@ main = do
         hypParams = MLPHypParams device 7 [(60,Sigmoid),(1,Sigmoid)] -- 入力層のノード数:7,隠れ層のノード層:60,出力層:1
     
     -- モデルのロード
-    model <- loadParams hypParams "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model_batch128.pt"
+    model <- loadParams hypParams "/home/acf16406dh/hasktorch-projects/app/titanic/curves/model_batch64.pt"
     
     -- 評価データに対する予測を行う
     let predictions = map (\input -> 
@@ -167,5 +167,7 @@ main = do
                          ) validInputs
     
     -- 指標の計算
-    let metrics = calculateMetrics predictions validActuals
+    let metrics = fst $ calculateMetrics predictions validActuals
+    let confucions = snd $ calculateMetrics predictions validActuals
     print metrics
+    print confucions -- [tp, tn, fp, fn]
