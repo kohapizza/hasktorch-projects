@@ -130,7 +130,7 @@ calculateMetrics predictions actuals =
         accuracy = (tp + tn) / (tp + tn + fp + fn)
         precision = tp / (tp + fp)
         recall = tp / (tp + fn)
-        -- 分母が0になるときの実装！！！！0になったらどうしたらいい？
+        -- 分母が0になるときの実装！！！0になったらどうしたらいい？
     in
         (Metrics accuracy precision recall, [tp, tn, fp, fn])
 
