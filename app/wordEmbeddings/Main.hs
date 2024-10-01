@@ -21,9 +21,9 @@ import Torch.Tensor (Tensor, asTensor)
 import Torch.TensorFactories (eye', zeros')
 
 -- your text data (try small data first)
-textFilePath = "data/review-texts.txt"
-modelPath =  "data/sample_embedding.params"
-wordLstPath = "data/sample_wordlst.txt"
+textFilePath = "/home/acf16406dh/hasktorch-projects/app/wordEmbeddings/datas/treated-texts.txt"
+modelPath =  "/home/acf16406dh/hasktorch-projects/app/wordEmbeddings/datas/sample_embedding.params"
+wordLstPath = "/home/acf16406dh/hasktorch-projects/app/wordEmbeddings/datas/sample_wordlst.txt"
 
 data EmbeddingSpec = EmbeddingSpec {
   wordNum :: Int, -- the number of words
