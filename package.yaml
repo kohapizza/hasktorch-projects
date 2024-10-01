@@ -51,7 +51,7 @@ library:
 executables:
   hasktorch-projects-exe:
     main:                Main.hs
-    source-dirs:         app/treatLargeFiles
+    source-dirs:         app/wordEmbeddings
     ghc-options:
     - -threaded
     - -rtsopts
