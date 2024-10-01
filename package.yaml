@@ -51,7 +51,7 @@ library:
 executables:
   hasktorch-projects-exe:
     main:                Main.hs
-    source-dirs:         app/evaluationScores
+    source-dirs:         app/treatLargeFiles
     ghc-options:
     - -threaded
     - -rtsopts
