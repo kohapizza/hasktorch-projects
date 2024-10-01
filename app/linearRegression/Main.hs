@@ -92,8 +92,6 @@ validModel state validData = do
       loss = mseLoss y y' -- 平均2乗誤差
   return $ asValue loss
 
-  
-
           
 main :: IO ()
 main = do
@@ -134,12 +132,12 @@ main = do
   -- block関数を適用しながら初期値xを更新していく
   -- block関数は現在のモデル状態とindex iを引数に取って更新された値を返す
 
-  -- 内側のループ: epoch処理, 外側のループ: バッチ処理
-  (trained, trainLosses, validlossess) <- foldLoop (init, [], []) numEpoch $ \(state, trainLosses, validlossess) i -> do -- stateは現在のモデル状態, iは現在のイテレーション番号
+  -- 外側のループ: epoch処理, 内側のループ: バッチ処理
+  (trained, trainLosses, validlossess) <- foldLoop (init, [], []) numEpoch $ \(state, trainLosses, validlossess) i -> do -- stateは現在のモデル状態, iは現在のエポック数
     -- randomedListからbatchsize分をtake
     -- そこに書いてある整数をtemperaturePairsから取り出す
     -- for train
-    (trained', lossValue, randomData) <- foldLoop (state, 0, initRandomData) ((length temperaturePairs) `Prelude.div` batchSize) $ \(state', lossValue, randomData) j -> do
+    (trained', lossValue, randomData) <- foldLoop (state, 0, initRandomData) ((length temperaturePairs) `Prelude.div` batchSize) $ \(state', lossValue, randomData) j -> do -- jは現在のイテレーション数
       let index = (j-1)*batchSize -- サブセットj個目か
           inputDataList = Prelude.take batchSize (drop index randomData) -- バッチサイズ分だけ取ってくる
           (inputData, outputData) = Prelude.unzip inputDataList
@@ -149,14 +147,14 @@ main = do
           loss = mseLoss y y' -- 平均2乗誤差
       when (j `mod` 10 == 0) $ do
         putStrLn $ "epoch : " ++ show i ++ " | Iteration: " ++ show j ++ " | Loss: " ++ show loss ++ " | losses : " ++ show trainLosses ++ " | lossValue : " ++ show lossValue 
-      (newParam, _) <- runStep state' optimizer loss 1e-6 -- パラメータを更新 学習率
+      (newParam, _) <- runStep state' optimizer loss 1e-6 -- パラメータを更新 学習率 バッチサイズを学習するごとに更新
       pure(newParam, asValue loss, randomData)
 
-    initRandomData <- shuffleM temperaturePairs -- train 1回目の学習データ用
+    initRandomData <- shuffleM temperaturePairs -- 毎回学習データをシャッフル
 
-    validlossValue <- validModel trained' validTemperaturePairs
+    validlossValue <- validModel trained' validTemperaturePairs -- 検証データのlossを計算
     
-    pure (trained', trainLosses ++ [lossValue], validlossess ++ [validlossValue]) -- epochごとにlossを更新したい
+    pure (trained', trainLosses ++ [lossValue], validlossess ++ [validlossValue]) -- epochごとにlossを更新
 
 
   printParams trained
